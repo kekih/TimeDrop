@@ -1,67 +1,51 @@
 # TimeDrop
 
-**Beautiful, fast & animated GUI for Tailscale Taildrop**
+**Native desktop GUI for Tailscale Taildrop**
 
-Send and receive files between your devices over the encrypted Tailscale mesh — with a modern, smooth interface.
-
-![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go) ![License](https://img.shields.io/badge/license-MIT-blue) ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
+Beautiful dark UI, animations, system window — not a browser tab.
 
 ## Features
 
-- 🌈 **Beautiful dark UI** with glassmorphism and smooth CSS animations
-- ⚡ **Extremely fast** — single static binary, zero heavy frameworks
-- 📤 **Send** files via drag-and-drop or file picker to any online device
-- 📥 **Inbox** — see incoming files instantly, save or delete with one click
-- 📊 Live progress bars and device status (online / offline / reason)
-- 🔒 Uses official Tailscale LocalAPI (same as `tailscale file`)
-- 📁 Auto-saves to Downloads (configurable)
+- Native desktop window (Wails + system webview)
+- Send files to devices on your tailnet
+- Inbox: save / delete incoming Taildrop files
+- Live device list and daemon status
+- Single binary, no Electron
 
 ## Requirements
 
-- Running `tailscaled` (Tailscale must be installed and logged in)
-- Taildrop enabled in your tailnet admin console
+- Tailscale installed and running (`tailscaled`)
+- Taildrop enabled in admin console
 
-## Install
-
-### From releases (recommended)
-
-Download the latest binary for your OS from the [Releases](https://github.com/kekih/TimeDrop/releases) page.
+## Build (local)
 
 ```bash
-# Linux / macOS example
-chmod +x timedrop
-./timedrop
-```
-
-Then open http://127.0.0.1:8742 in your browser.
-
-### Build from source
-
-```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
 git clone https://github.com/kekih/TimeDrop.git
 cd TimeDrop
-go build -ldflags="-s -w" -o timedrop .
-./timedrop
+go mod tidy
+wails build
 ```
 
-## Usage
+Binary appears in `build/bin/`.
 
-1. Make sure Tailscale is running and Taildrop is enabled.
-2. Launch TimeDrop.
-3. Open the local web UI (it opens automatically if possible).
-4. Drag files onto the window or use the Send tab to choose a device.
-5. Incoming files appear in the Inbox tab with one-click Save / Delete.
+### Linux deps
 
-## Architecture
-
-```
-TimeDrop (Go)
-├─ LocalAPI client  → talks to tailscaled (same interface as CLI)
-├─ Lightweight HTTP server on 127.0.0.1:8742
-└─ Embedded modern web UI (HTML + CSS + vanilla JS)
+```bash
+# Debian/Ubuntu
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
-No Electron, no Wails runtime, no Node — just one fast binary.
+## Release (GitHub Actions)
+
+Push a version tag — CI builds desktop binaries and publishes a Release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Or: **Actions → Release → Run workflow**.
 
 ## License
 
