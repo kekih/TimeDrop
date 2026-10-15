@@ -18,14 +18,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
-	st, err := ts.Status(r.Context())
+	st, err := getStatus(r.Context())
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
+	self := ""
+	if st.Self != nil {
+		self = st.Self.HostName
+	}
 	writeJSON(w, 200, map[string]any{
 		"backendState": st.BackendState,
-		"self":         st.Self.HostName,
+		"self":         self,
 		"version":      version,
 	})
 }
@@ -151,7 +155,22 @@ func sendViaCLI(device, name string, r io.Reader) error {
 
 	final := filepath.Join(filepath.Dir(tmp.Name()), name)
 	if err := os.Rename(tmp.Name(), final); err != nil {
-		return err
+		// fallback copy if rename fails across filesystems
+		src, err2 := os.Open(tmp.Name())
+		if err2 != nil {
+			return err
+		}
+		dst, err2 := os.Create(final)
+		if err2 != nil {
+			src.Close()
+			return err
+		}
+		_, err2 = io.Copy(dst, src)
+		src.Close()
+		dst.Close()
+		if err2 != nil {
+			return err2
+		}
 	}
 	defer os.Remove(final)
 
