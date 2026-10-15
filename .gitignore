@@ -1,0 +1,7 @@
+timedrop
+timedrop.exe
+*.exe
+*.test
+/dist/
+/bin/
+.DS_Store
