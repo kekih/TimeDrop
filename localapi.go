@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"tailscale.com/client/local"
-	"tailscale.com/client/tailscale/apitype"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
 )
@@ -62,6 +61,10 @@ func listDevices(ctx context.Context) ([]Device, error) {
 	}
 
 	byID := make(map[tailcfg.StableNodeID]Device)
+	peerByID := make(map[tailcfg.StableNodeID]*ipnstate.PeerStatus)
+	for _, ps := range st.Peer {
+		peerByID[ps.ID] = ps
+	}
 
 	for _, ft := range fts {
 		n := ft.Node
@@ -70,7 +73,7 @@ func listDevices(ctx context.Context) ([]Device, error) {
 			Name:     n.ComputedName,
 			Taildrop: "available",
 		}
-		if ps, ok := st.Peer[n.Key]; ok {
+		if ps, ok := peerByID[n.StableID]; ok {
 			d.OS = ps.OS
 			d.Online = ps.Online
 			if !ps.LastSeen.IsZero() {
