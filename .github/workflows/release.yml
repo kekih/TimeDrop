@@ -3,13 +3,13 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version without v (e.g. 0.1.0)'
+        description: 'Tag name (e.g. v0.1.1)'
         required: true
-        default: '0.1.0'
+        default: 'v0.1.1'
 
 permissions:
   contents: write
@@ -22,21 +22,29 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
       - name: Install Linux deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev pkg-config
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.2
       - name: Build
         run: |
+          set -e
           go mod tidy
-          wails build -platform linux/amd64 -clean
-          cp build/bin/TimeDrop timedrop-linux-amd64 || cp build/bin/timedrop timedrop-linux-amd64
+          wails build -platform linux/amd64 -clean -ldflags "-s -w"
+          mkdir -p dist
+          if [ -f build/bin/TimeDrop ]; then cp build/bin/TimeDrop dist/TimeDrop-linux-amd64
+          elif [ -f build/bin/timedrop ]; then cp build/bin/timedrop dist/TimeDrop-linux-amd64
+          else ls -laR build; exit 1; fi
+          chmod +x dist/TimeDrop-linux-amd64
+          ls -lh dist/
       - uses: actions/upload-artifact@v4
         with:
           name: linux-amd64
-          path: timedrop-linux-amd64
+          path: dist/TimeDrop-linux-amd64
+          if-no-files-found: error
 
   build-windows:
     runs-on: windows-latest
@@ -45,38 +53,57 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
       - name: Install Wails
+        shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.2
       - name: Build
         shell: bash
         run: |
+          set -e
           go mod tidy
-          wails build -platform windows/amd64 -clean
-          cp build/bin/TimeDrop.exe timedrop-windows-amd64.exe || cp build/bin/TimeDrop.exe timedrop-windows-amd64.exe
+          wails build -platform windows/amd64 -clean -ldflags "-s -w"
+          mkdir -p dist
+          if [ -f build/bin/TimeDrop.exe ]; then cp build/bin/TimeDrop.exe dist/TimeDrop-windows-amd64.exe
+          else ls -laR build; exit 1; fi
+          ls -lh dist/
       - uses: actions/upload-artifact@v4
         with:
           name: windows-amd64
-          path: timedrop-windows-amd64.exe
+          path: dist/TimeDrop-windows-amd64.exe
+          if-no-files-found: error
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.2
       - name: Build
         run: |
+          set -e
           go mod tidy
-          wails build -platform darwin/universal -clean || wails build -platform darwin/arm64 -clean
-          find build/bin -type f -name 'TimeDrop*' -exec cp {} timedrop-darwin \;
-          ls -la
+          wails build -platform darwin/arm64 -clean -ldflags "-s -w" || wails build -platform darwin/amd64 -clean -ldflags "-s -w"
+          mkdir -p dist
+          # app bundle or binary
+          if [ -d build/bin/TimeDrop.app ]; then
+            ditto -c -k --sequesterRsrc --keepParent build/bin/TimeDrop.app dist/TimeDrop-macos.app.zip
+          elif [ -f build/bin/TimeDrop ]; then
+            cp build/bin/TimeDrop dist/TimeDrop-macos
+            chmod +x dist/TimeDrop-macos
+          else
+            ls -laR build; exit 1
+          fi
+          ls -lh dist/
       - uses: actions/upload-artifact@v4
         with:
-          name: darwin
-          path: timedrop-darwin*
+          name: macos
+          path: dist/*
+          if-no-files-found: error
 
   release:
     needs: [build-linux, build-windows, build-macos]
@@ -86,13 +113,18 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      - name: Files
+      - name: List files
         run: find artifacts -type f -ls
-      - uses: softprops/action-gh-release@v2
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name || format('v{0}', inputs.version) }}
-          name: TimeDrop ${{ github.ref_name || format('v{0}', inputs.version) }}
-          files: artifacts/**
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+          name: TimeDrop ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*
           generate_release_notes: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
