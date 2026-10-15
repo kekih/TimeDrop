@@ -6,10 +6,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"tailscale.com/client/local"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -102,8 +101,7 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Multipart form: device + file(s)
-	if err := r.ParseMultipartForm(512 << 20); err != nil { // 512 MB max
+	if err := r.ParseMultipartForm(512 << 20); err != nil {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
@@ -127,9 +125,6 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Use the official local client Put method if available,
-		// otherwise fall back to shelling out to `tailscale file cp`
-		// for maximum compatibility.
 		err = sendViaCLI(device, fh.Filename, f)
 		f.Close()
 		if err != nil {
@@ -141,46 +136,29 @@ func handleSend(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, results)
 }
 
-// sendViaCLI is a reliable fallback that uses the same binary the user already has.
 func sendViaCLI(device, name string, r io.Reader) error {
-	// Write to a temp file first (tailscale file cp needs a path)
 	tmp, err := os.CreateTemp("", "timedrop-*")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmp.Name())
-	defer tmp.Close()
 
 	if _, err := io.Copy(tmp, r); err != nil {
+		tmp.Close()
 		return err
 	}
 	tmp.Close()
 
-	// Rename so the original filename is preserved
 	final := filepath.Join(filepath.Dir(tmp.Name()), name)
-	os.Rename(tmp.Name(), final)
+	if err := os.Rename(tmp.Name(), final); err != nil {
+		return err
+	}
 	defer os.Remove(final)
 
-	cmd := execCommand("tailscale", "file", "cp", final, device+":")
+	cmd := exec.Command("tailscale", "file", "cp", final, device+":")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
-}
-
-// execCommand is a tiny wrapper so tests can mock it later.
-var execCommand = func(name string, arg ...string) *local.Command {
-	// We use os/exec under the hood, but keep the type simple.
-	return &local.Command{Name: name, Args: arg}
-}
-
-// Temporary shim until we switch fully to PutFile.
-type localCommand struct {
-	Name string
-	Args []string
-}
-
-func (c *localCommand) CombinedOutput() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented in this build path")
 }
