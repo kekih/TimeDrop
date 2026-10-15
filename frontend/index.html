@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TimeDrop</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div class="app">
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">⏱</div>
+        <div>
+          <h1>TimeDrop</h1>
+          <p class="subtitle">Taildrop, but beautiful</p>
+        </div>
+      </div>
+      <div class="status" id="status">
+        <span class="dot"></span>
+        <span id="status-text">Connecting…</span>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="send">Send</button>
+      <button class="tab" data-tab="inbox">Inbox <span class="badge" id="inbox-badge" hidden>0</span></button>
+    </nav>
+
+    <main>
+      <section id="tab-send" class="tab-panel active">
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-inner">
+            <div class="drop-icon">📤</div>
+            <h2>Drop files here</h2>
+            <p>or click to browse</p>
+            <input type="file" id="file-input" multiple hidden />
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>Devices</h3>
+          <div class="device-list" id="device-list">
+            <div class="skeleton"></div>
+            <div class="skeleton"></div>
+          </div>
+        </div>
+
+        <div class="selected-files" id="selected-files" hidden></div>
+        <button class="btn primary" id="send-btn" disabled>Send to selected</button>
+      </section>
+
+      <section id="tab-inbox" class="tab-panel">
+        <div class="section">
+          <div class="section-header">
+            <h3>Incoming files</h3>
+            <button class="btn ghost" id="refresh-inbox">Refresh</button>
+          </div>
+          <div class="inbox-list" id="inbox-list">
+            <p class="empty">No files waiting</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>v<span id="ver">0.1.0</span></span>
+      <span id="self-name"></span>
+    </footer>
+  </div>
+
+  <div class="toast-container" id="toasts"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,97 +1,64 @@
 package main
 
 import (
-	"context"
-	"flag"
-	"fmt"
+	"embed"
 	"log"
-	"net"
-	"net/http"
-	"os"
-	"os/exec"
-	"os/signal"
-	"runtime"
-	"syscall"
-	"time"
+
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
-var (
-	addr     = flag.String("addr", "127.0.0.1:8742", "listen address")
-	noOpen   = flag.Bool("no-open", false, "do not open browser automatically")
-	version  = "0.1.0"
-)
+//go:embed all:frontend
+var assets embed.FS
+
+var version = "0.1.0"
 
 func main() {
-	flag.Parse()
+	app := NewApp()
 
-	log.SetFlags(0)
-	log.Printf("TimeDrop %s starting…", version)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", serveIndex)
-	mux.HandleFunc("/api/devices", handleDevices)
-	mux.HandleFunc("/api/inbox", handleInbox)
-	mux.HandleFunc("/api/inbox/save", handleSave)
-	mux.HandleFunc("/api/inbox/delete", handleDelete)
-	mux.HandleFunc("/api/send", handleSend)
-	mux.HandleFunc("/api/status", handleStatus)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
-
-	srv := &http.Server{
-		Addr:              *addr,
-		Handler:           withCORS(mux),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	ln, err := net.Listen("tcp", *addr)
-	if err != nil {
-		log.Fatalf("listen: %v", err)
-	}
-
-	go func() {
-		log.Printf("UI ready → http://%s", *addr)
-		if !*noOpen {
-			openBrowser(fmt.Sprintf("http://%s", *addr))
-		}
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("serve: %v", err)
-		}
-	}()
-
-	<-ctx.Done()
-	log.Println("shutting down…")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
-}
-
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "linux":
-		cmd = exec.Command("xdg-open", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	default:
-		return
-	}
-	_ = cmd.Start()
-}
-
-func withCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
+	err := wails.Run(&options.App{
+		Title:             "TimeDrop",
+		Width:             780,
+		Height:            720,
+		MinWidth:          560,
+		MinHeight:         480,
+		DisableResize:     false,
+		Fullscreen:        false,
+		Frameless:         false,
+		StartHidden:       false,
+		HideWindowOnClose: false,
+		BackgroundColour:  &options.RGBA{R: 11, G: 15, B: 25, A: 255},
+		AssetServer: &assetserver.Options{
+			Assets: assets,
+		},
+		OnStartup:  app.startup,
+		OnShutdown: app.shutdown,
+		Bind: []interface{}{
+			app,
+		},
+		Windows: &windows.Options{
+			WebviewIsTransparent: false,
+			WindowIsTranslucent:  false,
+			DisableWindowIcon:   false,
+		},
+		Mac: &mac.Options{
+			TitleBar:             mac.TitleBarDefault(),
+			WebviewIsTransparent: false,
+			WindowIsTranslucent:  false,
+			About: &mac.AboutInfo{
+				Title:   "TimeDrop",
+				Message: "Beautiful Taildrop client",
+			},
+		},
+		Linux: &linux.Options{
+			WindowIsTranslucent: false,
+		},
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
