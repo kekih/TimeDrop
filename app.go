@@ -3,14 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-// App is the Wails backend.
+// App is the Wails backend bound to the frontend.
 type App struct {
 	ctx context.Context
 }
@@ -25,12 +23,10 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) shutdown(ctx context.Context) {}
 
-// GetVersion returns app version.
 func (a *App) GetVersion() string {
 	return version
 }
 
-// GetStatus returns Tailscale daemon status.
 func (a *App) GetStatus() map[string]any {
 	st, err := getStatus(a.ctx)
 	if err != nil {
@@ -47,27 +43,22 @@ func (a *App) GetStatus() map[string]any {
 	}
 }
 
-// GetDevices returns tailnet devices for Taildrop.
 func (a *App) GetDevices() ([]Device, error) {
 	return listDevices(a.ctx)
 }
 
-// GetInbox returns waiting Taildrop files.
 func (a *App) GetInbox() ([]WaitingFile, error) {
 	return listInbox(a.ctx)
 }
 
-// SaveFile saves an inbox file to Downloads.
 func (a *App) SaveFile(name string) (string, error) {
 	return saveFile(a.ctx, name, defaultSaveDir())
 }
 
-// DeleteFile removes an inbox file.
 func (a *App) DeleteFile(name string) error {
 	return deleteFile(a.ctx, name)
 }
 
-// SendFiles sends local file paths to a device via tailscale CLI.
 func (a *App) SendFiles(device string, paths []string) []map[string]string {
 	results := make([]map[string]string, 0, len(paths))
 	for _, p := range paths {
@@ -90,13 +81,3 @@ func sendPathViaCLI(device, path string) error {
 	}
 	return nil
 }
-
-// SelectFiles opens a native file dialog and returns selected paths.
-// Wails runtime dialog is used from frontend; this is a helper for path send.
-func (a *App) SelectAndSend(device string, paths []string) []map[string]string {
-	return a.SendFiles(device, paths)
-}
-
-// unused keep imports happy if needed
-var _ = io.Copy
-var _ = os.CreateTemp
